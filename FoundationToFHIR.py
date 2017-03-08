@@ -289,8 +289,8 @@ def diagnosticReportAddContainedArr(diagnosticReportResource, observationArr, sp
     diagnosticReportResource['contained'] = []
     l = len(observationArr)
     for i in range(0, l, 1):
-        diagnosticReportResource.contained.append(observationArr[i].observationResource)
-    diagnosticReportResource.contained.append(specimen.specimenResource)
+        diagnosticReportResource['contained'].append(observationArr[i].observationResource)
+    diagnosticReportResource['contained'].append(specimen.specimenResource)
 
 class foundationFhirObservation:
     def __init__(self):
@@ -526,6 +526,169 @@ def relateObservations(observationArr):
     for i in range(0, l, 1):
         observationArr[i].observationResource['related'] = observationArr[i].related
 
+class foundationFhirCondition():
+    def __init__(self):
+        self.conditionResource = {
+            'resourceType': "Condition",
+            'text': {
+                'status': "generated",
+                'div': ""
+            },
+            'verificationStatus': "confirmed",
+            'category': [{
+                'coding': [{
+                    'system': "http://hl7.org/fhir/condition-category",
+                    'code': "encounter-diagnosis"
+                }]
+            }],
+            'severity': {
+                'coding': [{
+                    'system': "http://snomed.info/sct",
+                    'code': "24484000",
+                    'display': "Severe"
+                }]
+            }
+        }
+        self.resourceType = "Condition"
+
+    def getCondition(self):
+        return self.conditionResource['code']['text']
+
+    def getConditionId(self):
+        return self.conditionResource['id']
+
+    def getSubjectName(self):
+        return self.conditionResource['subject']['display']
+
+    def getSubjectReference(self):
+        return self.conditionResource['subject']['reference']
+
+    def getConditionBodySite(self):
+        return self.conditionResource['bodySite'][0]['text']
+
+    def getConditionEvidence(self):
+        return self.conditionResource['evidence'][0]['detail'][0]['display']
+
+def conditionAddId(conditionResource, patientId):
+    conditionResource['id'] = patientId + "-cond-1"
+
+def conditionAddCodeFromFoundation(conditionResource, DOM):
+    conditionResource['code'] = {
+        'text': DOM.getElementsByTagName('SubmittedDiagnosis')[0].childNodes[0].nodeValue
+    }
+
+def conditionAddBodySiteFromFoundation(conditionResource, DOM):
+    conditionResource['bodySite'] = [{
+        'text': DOM.getElementsByTagName('variant-report')[0].getAttribute('disease').lower()
+    }]
+
+def conditionAddEvidenceDetailReference(conditionResource, diagnosticReportId, DOM):
+    conditionResource['evidence'] = [{}]
+    conditionResource['evidence'][0]['detail'] = [{
+        'reference': "DiagnosticReport/" + diagnosticReportId,
+        'display': "A " + DOM.getElementsByTagName('TestType')[0].childNodes[0].nodeValue + " test performed on " +
+                 DOM.getElementsByTagName('CollDate')[0].childNodes[0].nodeValue + " by Foundation Medicine"
+    }]
+
+class foundationFhirDiagnosticRequest:
+    def __init__(self):
+        self.diagnosticRequestResource = {
+            'resourceType': "DiagnosticRequest",
+            'status': "completed",
+            'intent': "order"
+        }
+        self.resourceType = "DiagnosticRequest"
+
+    def getDiagnosticRequestId(self):
+        return self.diagnosticRequestResource['id']
+
+    def getDiagnosticRequestNote(self):
+        return self.diagnosticRequestResource['note']
+
+def diagnosticRequestAddId(diagnosticRequestResource, diagnosticReportId):
+    diagnosticRequestResource['id'] = diagnosticReportId + "-request-1"
+
+def diagnosticRequestAddNote(diagnosticRequestResource, diagnosticReportTestPerformed):
+    diagnosticRequestResource['note'] = "This is a request for a " + diagnosticReportTestPerformed
+
+def diagnosticRequestAddRequester(diagnosticRequestResource, orderingMDId, orderingMDName):
+    diagnosticRequestResource['requester'] = {
+        'reference': "Practitioner/" + orderingMDId,
+        'display': orderingMDName
+    }
+
+def diagnosticRequestAddreasonReference(diagnosticRequestResource, conditionId, condition):
+    diagnosticRequestResource['reasonReference'] = [{
+        'reference': "Condition/" + conditionId,
+        'display': condition
+    }]
+
+class foundationFhirSpecimen:
+    def __init__(self):
+        self.specimenResource = {
+            'resourceType': "Specimen",
+            'status': "available",
+            'collection': {}
+        }
+        self.resourceType = "Specimen"
+
+    def getSpecimenType(self):
+        return self.specimenResource['type']['text']
+
+    def getSpecimenId(self):
+        return self.specimenResource['id']
+
+    def getSpecimenCollectionDate(self):
+        return self.specimenResource['collection']['collector']['collectedDateTime']
+
+    def getSpecimenBodySite(self):
+        return self.specimenResource['collection']['collector']['bodySite']['text']
+
+def specimenAddId(specimenResource, reportId):
+    specimenResource['id'] = reportId + "-specimen-1"
+
+# pathologist doesn't have actual ID
+def specimenAddPathologistAsCollector(specimenResource, pathologistID, pathologistName):
+    specimenResource['collection']['collector'] = {
+        'reference': "Practitioner/" + pathologistID,
+        'display': pathologistName
+    }
+
+def specimenAddNoteFromFoundation(specimenResource, DOM):
+    applicationSetting = DOM.getElementsByTagName('ApplicationSetting')
+    try:
+        statement = applicationSetting[0].getElementsByTagName("Value")[0].childNodes[0].nodeValue
+    except:
+        statement = ""
+    specimenResource['note'] = [{
+        'authorString': "Foundation Medicine",
+        'time': DOM.getElementsByTagName('CollDate')[0].childNodes[0].nodeValue,
+        'text': statement
+    }]
+
+def specimenAddCollectionInfoFromFoundation(specimenResource, DOM):
+    specimenResource['collection']['collectedDateTime'] = DOM.getElementsByTagName('CollDate')[0].childNodes[0].nodeValue
+    specimenResource['collection']['bodySite'] = {
+        'coding': [],
+        'text': DOM.getElementsByTagName('SpecSite')[0].childNodes[0].nodeValue
+    }
+
+def specimenAddRequestReference(specimenResource, resourceID, resourceText):
+    specimenResource['request'] = [{
+        'reference': "DiagnosticRequest/" + resourceID,
+        'display': resourceText
+    }]
+
+def specimenAddReceivedTimeFromFoundation(specimenResource, DOM):
+    specimenResource['receivedTime'] = DOM.getElementsByTagName('ReceivedDate')[0].childNodes[0].nodeValue
+
+def specimenAddTypeFromFoundation(specimenResource, DOM):
+    specimenResource['type'] = {
+        'coding': [],
+        'text': DOM.getElementsByTagName('SpecFormat')[0].childNodes[0].nodeValue + " from " +
+              DOM.getElementsByTagName('SpecSite')[0].childNodes[0].nodeValue
+    }
+
 ########################################################################################################################
 files = [f for f in os.listdir('.') if f.endswith('.xml')]
 for f in files:
@@ -544,10 +707,6 @@ for f in files:
     practitionerAddNameFromFoundation(orderingPhysician.practitionerResource, 'OrderingMD', DOM)
     practitionerAddRoleFromFoundation(orderingPhysician.practitionerResource, 'OrderingMD')
 
-    pathologist = foundationFhirPractitioner()
-    practitionerAddNameFromFoundation(pathologist.practitionerResource, 'Pathologist', DOM)
-    practitionerAddRoleFromFoundation(pathologist.practitionerResource, 'Pathologist')
-
     patient = foundationFhirPatient()
     patientAddIdFromFoundation(patient.patientResource, DOM)
     patientAddNameFromFoundation(patient.patientResource, DOM)
@@ -555,29 +714,59 @@ for f in files:
     patientAddBirthDateFromFoundation(patient.patientResource, DOM)
     patientAddIdentifierFromFoundation(patient.patientResource, DOM)
 
+    pathologist = foundationFhirPractitioner()
+    pathologist.practitionerResource['id'] = patient.patientResource['id'] + "FMpatho"
+    practitionerAddNameFromFoundation(pathologist.practitionerResource, 'Pathologist', DOM)
+    practitionerAddRoleFromFoundation(pathologist.practitionerResource, 'Pathologist')
+
     diagnosticReport = foundationFhirDiagnosticReport()
     # passing in entire diagnosticReport, not just resource, because we record how many observations we have
     diagnosticReportAddConclusionFromFoundation(diagnosticReport, DOM)
     diagnosticReportAddId(diagnosticReport.diagnosticReportResource, DOM)
     diagnosticReportAddCategoryFromFoundation(diagnosticReport.diagnosticReportResource, DOM)
-    addPatientSubjectReference(diagnosticReport.diagnosticReportResource, patient.getPatientId(), patient.getPatientFullName())
     diagnosticReportAddEffectiveDateTimeFromFoundation(diagnosticReport.diagnosticReportResource, DOM)
+    addPatientSubjectReference(diagnosticReport.diagnosticReportResource, patient.getPatientId(), patient.getPatientFullName())
+    addFoundationAsPerformer(diagnosticReport.diagnosticReportResource)
 
     observationArr = []
     initObservations(observationArr, diagnosticReport.getObservationsInReportCount())
-    # add patient id to observation objects since it is used to make the ID of all clinical resources
+    # add report id to observation objects since it is used to make the ID of all clinical resources
     addReportIdToObservationObj(observationArr, diagnosticReport.getDiagnosticReportId())
+    addPatientSubjectReferenceToObservations(observationArr, patient.getPatientId(), patient.getPatientFullName())
     # we add id to observations when adding genomic information..
     # this is so we can link genomic alterations to therapies and clinical trials
     observationAddGenomicInfoFromFoundation(observationArr, DOM)
-
-    # TODO: Implement the rest of the observation fields
-    addPatientSubjectReferenceToObservations(observationArr, patient.getPatientId(), patient.getPatientFullName())
     observationAddEffectiveDateTimeFromFoundation(observationArr, diagnosticReport.getReportDate())
     relateObservations(observationArr)
 
+    condition = foundationFhirCondition()
+    conditionAddId(condition.conditionResource, patient.getPatientId())
+    conditionAddCodeFromFoundation(condition.conditionResource, DOM)
+    conditionAddBodySiteFromFoundation(condition.conditionResource, DOM)
+    conditionAddEvidenceDetailReference(condition.conditionResource, diagnosticReport.getDiagnosticReportId(), DOM)
+    addPatientSubjectReference(condition.conditionResource, patient.getPatientId(), patient.getPatientFullName())
+
+    diagnosticRequest = foundationFhirDiagnosticRequest()
+    diagnosticRequestAddId(diagnosticRequest.diagnosticRequestResource, diagnosticReport.getDiagnosticReportId())
+    diagnosticRequestAddNote(diagnosticRequest.diagnosticRequestResource, diagnosticReport.getDiagnosticReportTestPerformed())
+    diagnosticRequestAddreasonReference(diagnosticRequest.diagnosticRequestResource, condition.getConditionId(), condition.getCondition())
+    diagnosticRequestAddRequester(diagnosticRequest.diagnosticRequestResource, orderingPhysician.getPractitionerId(), orderingPhysician.getPractitionerName())
+    addPatientSubjectReference(diagnosticRequest.diagnosticRequestResource, patient.getPatientId(), patient.getPatientFullName())
+    addFoundationAsPerformer(diagnosticReport.diagnosticReportResource)
+
+    specimen = foundationFhirSpecimen()
+    specimenAddId(specimen.specimenResource, diagnosticReport.getDiagnosticReportId())
+    # actual pathologist ID is unknown! Using made up one here based off patient ID (see above)
+    specimenAddPathologistAsCollector(specimen.specimenResource, pathologist.getPractitionerId(), pathologist.getPractitionerName())
+    specimenAddCollectionInfoFromFoundation(specimen.specimenResource, DOM)
+    specimenAddReceivedTimeFromFoundation(specimen.specimenResource, DOM)
+    specimenAddTypeFromFoundation(specimen.specimenResource, DOM)
+    specimenAddRequestReference(specimen.specimenResource, diagnosticRequest.getDiagnosticRequestId(), diagnosticRequest.getDiagnosticRequestNote())
+    specimenAddNoteFromFoundation(specimen.specimenResource, DOM)
+    addPatientSubjectReference(specimen.specimenResource, patient.getPatientId(), patient.getPatientFullName())
+
     # go back and link all of the observations to the diagnostic report
     diagnosticReportReferenceObservations(diagnosticReport.diagnosticReportResource, observationArr)
-    #diagnosticReportAddSpecimenReference(diagnosticReport.diagnosticReportResource, diagnosticReport.getDiagnosticReportId(), specimen.getSpecimenType());
-    #diagnosticReportAddContainedArr(diagnosticReport.diagnosticReportResource, observationArr, specimen);
-    pprint.pprint(observationArr[0].observationResource)
+    # also add link specimen back to report, and put them all in contained field for easier access
+    diagnosticReportAddSpecimenReference(diagnosticReport.diagnosticReportResource, diagnosticReport.getDiagnosticReportId(), specimen.getSpecimenType())
+    diagnosticReportAddContainedArr(diagnosticReport.diagnosticReportResource, observationArr, specimen)
