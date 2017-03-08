@@ -221,7 +221,7 @@ class foundationFhirDiagnosticReport:
     def getObservationsInReportCount(self):
         return self.observationsInReport
 
-    def getReportDat(self):
+    def getReportDate(self):
         return self.diagnosticReportResource['effectiveDateTime']
 
     def getReferencePatientName(self):
@@ -280,10 +280,10 @@ def diagnosticReportReferenceObservations(diagnosticReportResource, observationA
     diagnosticReportResource['result'] = []
     l = len(observationArr)
     for i in range(0, l, 1):
-        diagnosticReportResource['result'][i] = {
+        diagnosticReportResource['result'].append({
             'reference': "Observation/" + observationArr[i].getObservationId(),
             'display': observationArr[i].getDisplayString()
-        }
+        })
 
 def diagnosticReportAddContainedArr(diagnosticReportResource, observationArr, specimen):
     diagnosticReportResource['contained'] = []
@@ -508,6 +508,24 @@ def observationAddGenomicInfoFromFoundation(observationArr, DOM):
     extractGenomicInfoInOrder(observationArr, genesDOM, genes, trackerObj)
     extractRelatedClinicalTrials(observationArr, DOM, genes, trackerObj)
 
+def addPatientSubjectReferenceToObservations(observationArr, patientId, patientName):
+    l = len(observationArr)
+    for i in range(0, l, 1):
+        observationArr[i].observationResource['subject'] = {
+            'reference': "Patient/" + patientId,
+            'display': patientName
+        }
+
+def observationAddEffectiveDateTimeFromFoundation(observationArr, date):
+    l = len(observationArr)
+    for i in range(0, l, 1):
+        observationArr[i].observationResource['effectiveDateTime'] = date
+
+def relateObservations(observationArr):
+    l = len(observationArr)
+    for i in range(0, l, 1):
+        observationArr[i].observationResource['related'] = observationArr[i].related
+
 ########################################################################################################################
 files = [f for f in os.listdir('.') if f.endswith('.xml')]
 for f in files:
@@ -556,9 +574,10 @@ for f in files:
     # TODO: Implement the rest of the observation fields
     addPatientSubjectReferenceToObservations(observationArr, patient.getPatientId(), patient.getPatientFullName())
     observationAddEffectiveDateTimeFromFoundation(observationArr, diagnosticReport.getReportDate())
-    relatedObservations(observationArr)
+    relateObservations(observationArr)
 
     # go back and link all of the observations to the diagnostic report
     diagnosticReportReferenceObservations(diagnosticReport.diagnosticReportResource, observationArr)
     #diagnosticReportAddSpecimenReference(diagnosticReport.diagnosticReportResource, diagnosticReport.getDiagnosticReportId(), specimen.getSpecimenType());
     #diagnosticReportAddContainedArr(diagnosticReport.diagnosticReportResource, observationArr, specimen);
+    pprint.pprint(observationArr[0].observationResource)
