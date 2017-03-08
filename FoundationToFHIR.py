@@ -32,6 +32,9 @@ class foundationFhirOrganization:
     def getOrganizationName(self):
         return self.organizationResource['name']
 
+    def getOrganizationId(self):
+        return self.organizationResource['id']
+
 def createFoundationMedicineOrganization(FMorganization):
     FMorganization['id'] = "FM"
     FMorganization['identifier'] = [{
@@ -113,7 +116,7 @@ def practitionerAddIdFromFoundation(practitionerResource, foundationTag, DOM):
     id = id + 'FM'
     practitionerResource['id'] = id
 
-def practitionerAddRoleFromFoundation(practitionerResource, foundationTag):
+def practitionerAddRoleFromFoundation(practitionerResource, foundationTag, organization):
     if (foundationTag == 'OrderingMD'):
         code = '309295000'
         text = 'Physician'
@@ -122,8 +125,14 @@ def practitionerAddRoleFromFoundation(practitionerResource, foundationTag):
         text = 'Pathologist'
 
     practitionerResource['role'] = [{}]
-    # TODO: add reference organization for ordering physician (is pathologist assumed to be from same organization?)
-    practitionerResource['role'][0]['organization'] = {}
+    # TODO: ask if pathologist assumed to be from same organization
+    if(organization is not None):
+        practitionerResource['role'][0]['organization'] = {
+            'reference': "Organization/" + organization.getOrganizationId(),
+            'display': organization.getOrganizationName()
+        }
+    else:
+        practitionerResource['role'][0]['organization'] = {}
     practitionerResource['role'][0]['code'] = {
         'coding': [{
             'system': "http://snomed.info/sct",
@@ -639,10 +648,13 @@ class foundationFhirSpecimen:
         return self.specimenResource['id']
 
     def getSpecimenCollectionDate(self):
-        return self.specimenResource['collection']['collector']['collectedDateTime']
+        return self.specimenResource['collection']['collectedDateTime']
 
     def getSpecimenBodySite(self):
-        return self.specimenResource['collection']['collector']['bodySite']['text']
+        return self.specimenResource['collection']['bodySite']['text']
+
+    def getSpecimenCollector(self):
+        return self.specimenResource['collection']['collector']['display']
 
 def specimenAddId(specimenResource, reportId):
     specimenResource['id'] = reportId + "-specimen-1"
@@ -705,7 +717,7 @@ for f in files:
     orderingPhysician = foundationFhirPractitioner()
     practitionerAddIdFromFoundation(orderingPhysician.practitionerResource, 'OrderingMDId', DOM)
     practitionerAddNameFromFoundation(orderingPhysician.practitionerResource, 'OrderingMD', DOM)
-    practitionerAddRoleFromFoundation(orderingPhysician.practitionerResource, 'OrderingMD')
+    practitionerAddRoleFromFoundation(orderingPhysician.practitionerResource, 'OrderingMD', organization)
 
     patient = foundationFhirPatient()
     patientAddIdFromFoundation(patient.patientResource, DOM)
@@ -715,9 +727,9 @@ for f in files:
     patientAddIdentifierFromFoundation(patient.patientResource, DOM)
 
     pathologist = foundationFhirPractitioner()
-    pathologist.practitionerResource['id'] = patient.patientResource['id'] + "FMpatho"
+    pathologist.practitionerResource['id'] = patient.patientResource['id'] + "patho1"
     practitionerAddNameFromFoundation(pathologist.practitionerResource, 'Pathologist', DOM)
-    practitionerAddRoleFromFoundation(pathologist.practitionerResource, 'Pathologist')
+    practitionerAddRoleFromFoundation(pathologist.practitionerResource, 'Pathologist', None)
 
     diagnosticReport = foundationFhirDiagnosticReport()
     # passing in entire diagnosticReport, not just resource, because we record how many observations we have
@@ -752,7 +764,7 @@ for f in files:
     diagnosticRequestAddreasonReference(diagnosticRequest.diagnosticRequestResource, condition.getConditionId(), condition.getCondition())
     diagnosticRequestAddRequester(diagnosticRequest.diagnosticRequestResource, orderingPhysician.getPractitionerId(), orderingPhysician.getPractitionerName())
     addPatientSubjectReference(diagnosticRequest.diagnosticRequestResource, patient.getPatientId(), patient.getPatientFullName())
-    addFoundationAsPerformer(diagnosticReport.diagnosticReportResource)
+    addFoundationAsPerformer(diagnosticRequest.diagnosticRequestResource)
 
     specimen = foundationFhirSpecimen()
     specimenAddId(specimen.specimenResource, diagnosticReport.getDiagnosticReportId())
