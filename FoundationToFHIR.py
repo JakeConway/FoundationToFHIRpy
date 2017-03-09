@@ -1,6 +1,4 @@
-import os
-import pprint
-import copy
+import copy, json, os
 from xml.dom import minidom as domParser
 
 def hasNumber(inputString):
@@ -701,6 +699,29 @@ def specimenAddTypeFromFoundation(specimenResource, DOM):
               DOM.getElementsByTagName('SpecSite')[0].childNodes[0].nodeValue
     }
 
+class FoundationToFhirBundle:
+    def __init__(self):
+        self.bundleResource = {
+            'resourceType': "Bundle",
+            'type': "Collection",
+            'entry': []
+        }
+
+    def addEntry(self, resource):
+        self.bundleResource['entry'].append({
+            'resource': resource
+        })
+
+    def addObservationEntries(self, observationArr):
+        l = len(observationArr)
+        for i in range(0, l, 1):
+            self.bundleResource['entry'].append({
+                'resource': observationArr[i].observationResource
+            })
+
+def addBundleIdFromFoundation(bundleResource, reportId):
+    bundleResource['id'] = "FoundationMedicine-" + reportId
+
 ########################################################################################################################
 files = [f for f in os.listdir('.') if f.endswith('.xml')]
 for f in files:
@@ -782,3 +803,19 @@ for f in files:
     # also add link specimen back to report, and put them all in contained field for easier access
     diagnosticReportAddSpecimenReference(diagnosticReport.diagnosticReportResource, diagnosticReport.getDiagnosticReportId(), specimen.getSpecimenType())
     diagnosticReportAddContainedArr(diagnosticReport.diagnosticReportResource, observationArr, specimen)
+
+    bundle = FoundationToFhirBundle()
+    addBundleIdFromFoundation(bundle.bundleResource, diagnosticReport.getDiagnosticReportId())
+    bundle.addEntry(FoundationMedicine.organizationResource)
+    bundle.addEntry(organization.organizationResource)
+    bundle.addEntry(orderingPhysician.practitionerResource)
+    bundle.addEntry(patient.patientResource)
+    bundle.addEntry(pathologist.practitionerResource)
+    bundle.addEntry(diagnosticReport.diagnosticReportResource)
+    bundle.addEntry(condition.conditionResource)
+    bundle.addEntry(diagnosticRequest.diagnosticRequestResource)
+    bundle.addEntry(specimen.specimenResource)
+    bundle.addObservationEntries(observationArr)
+
+    with open(f.split('.')[0]+'.json', 'w') as outfile:
+        json.dump(bundle.bundleResource, outfile)
