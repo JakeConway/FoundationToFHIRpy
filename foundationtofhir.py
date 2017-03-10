@@ -369,6 +369,30 @@ def addAminoAcidChangeFromFoundation(observationArr, alteration, tracker):
         }
     })
 
+def addRelatedArtifacts(reference, observationExtension):
+    referenceId = reference.getAttribute('referenceId')
+    url = "https://www.ncbi.nlm.nih.gov/pubmed/" + referenceId
+    observationExtension.append({
+        'url': "http://hl7.org/fhir/StructureDefinition/observation-relatedPubMedArtifact",
+        'valueCodeableConcept': {
+            'text': url
+        }
+    })
+
+def geneGrabRelatedArtifactsReferenceId(geneDOM, observationExtension):
+    nTherapyReferenceLinks = geneDOM.getElementsByTagName('Therapy').length
+    references = geneDOM.getElementsByTagName('ReferenceLinks')[nTherapyReferenceLinks]
+    references = references.getElementsByTagName('ReferenceLink')
+    l = references.length
+    for i in range(0, l, 1):
+        addRelatedArtifacts(references[i], observationExtension)
+
+def therapyGrabRelatedArtifactsReferenceId(therapyDOM, observationExtension):
+    references = therapyDOM.getElementsByTagName('ReferenceLink')
+    l = references.length
+    for i in range(0, l, 1):
+        addRelatedArtifacts(references[i], observationExtension)
+
 def extractRelatedTherapies(observationArr, geneDOM, gene, tracker, therapiesUsed, therapyDict, geneIndex):
     therapyDOMs = geneDOM.getElementsByTagName('Therapy')
     l = len(therapyDOMs)
@@ -417,6 +441,7 @@ def extractRelatedTherapies(observationArr, geneDOM, gene, tracker, therapiesUse
             observationArr[tracker['value']].display = display
             therapyDict[therapy] = int(tracker['value'])
             therapiesUsed.append(therapy)
+            therapyGrabRelatedArtifactsReferenceId(therapyDOMs[i], observationArr[tracker['value']].observationResource['extension'])
             tracker['value'] = tracker['value'] + 1
 
 def extractGenomicInfoInOrder(observationArr, genesDOM, genes, tracker):
@@ -450,9 +475,10 @@ def extractGenomicInfoInOrder(observationArr, genesDOM, genes, tracker):
         addGeneticsInterpretation(observationArr, alterationDOM[0].getElementsByTagName('Interpretation')[0].childNodes[0].nodeValue, tracker)
         observationArr[tracker['value']].observationResource['related'] = []
         observationArr[tracker['value']].display = 'A genomic alteration in ' + gene
+        geneGrabRelatedArtifactsReferenceId(geneDOMs[i], observationArr[tracker['value']].observationResource['extension'])
         geneIndex = copy.deepcopy(tracker)
         tracker['value'] = tracker['value'] + 1
-        # TODO: will also want to pass in the alteration with the gene, instead of just the gene (for display of reference)
+        # TODO: think about if we also want to pass in the alteration with the gene, instead of just the gene (for display of reference)
         extractRelatedTherapies(observationArr, geneDOMs[i], gene, tracker, therapies, therapyDict, geneIndex)
 
 def extractRelatedClinicalTrials(observationArr, trialsDOM, genes, tracker):
