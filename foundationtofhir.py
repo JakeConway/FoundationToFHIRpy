@@ -396,6 +396,7 @@ def therapyGrabRelatedArtifactsReferenceId(therapyDOM, observationExtension):
 def extractRelatedTherapies(observationArr, geneDOM, gene, tracker, therapiesUsed, therapyDict, geneIndex):
     therapyDOMs = geneDOM.getElementsByTagName('Therapy')
     l = len(therapyDOMs)
+    therapyNumber = 1
     for i in range(0, l, 1):
         therapy = therapyDOMs[i].getElementsByTagName('Name')[0].childNodes[0].nodeValue
         if(therapy in therapiesUsed):
@@ -422,7 +423,8 @@ def extractRelatedTherapies(observationArr, geneDOM, gene, tracker, therapiesUse
                 string = display + "This therapy was observed as a potential treatment for the patient due to their mutation in " + \
                 gene + ". FDA Approved: " + therapyDOMs[i].getElementsByTagName('FDAApproved')[0].childNodes[0].nodeValue
 
-            observationArr[tracker['value']].observationResource['id'] = observationArr[tracker['value']].relatedReportId + "-therapy-" + str((i + 1))
+            observationArr[tracker['value']].observationResource['id'] = observationArr[tracker['value']].relatedReportId + "-therapy-" + str(therapyNumber)
+            therapyNumber = therapyNumber + 1
             observationArr[tracker['value']].observationResource['valueString'] = string
             observationArr[tracker['value']].observationResource['comment'] = therapyDOMs[i].getElementsByTagName('Rationale')[0].childNodes[0].nodeValue
             observationArr[tracker['value']].related = [{
@@ -485,6 +487,7 @@ def extractRelatedClinicalTrials(observationArr, trialsDOM, genes, tracker):
     usedTrials = []
     trialsDict = {}
     trialDOMs = trialsDOM.getElementsByTagName('Trial')
+    trialNumber = 1
     l = len(trialDOMs)
     for i in range(0, l, 1):
         title = trialDOMs[i].getElementsByTagName('Title')[0].childNodes[0].nodeValue
@@ -512,7 +515,8 @@ def extractRelatedClinicalTrials(observationArr, trialsDOM, genes, tracker):
             ". The locations this clinical trial is available in are: " + \
             trialDOMs[i].getElementsByTagName('Locations')[0].childNodes[0].nodeValue + ". The NCT ID for this trial is: " + \
             trialDOMs[i].getElementsByTagName('NCTID')[0].childNodes[0].nodeValue
-            observationArr[tracker['value']].observationResource['id'] = observationArr[tracker['value']].relatedReportId + "-trial-" + str((i + 1))
+            observationArr[tracker['value']].observationResource['id'] = observationArr[tracker['value']].relatedReportId + "-trial-" + str(trialNumber)
+            trialNumber = trialNumber + 1
             observationArr[tracker['value']].observationResource['valueString'] = string
             observationArr[tracker['value']].observationResource['comment'] = trialDOMs[i].getElementsByTagName('Note')[0].childNodes[0].nodeValue
             observationArr[tracker['value']].related = [{
