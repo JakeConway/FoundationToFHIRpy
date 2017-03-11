@@ -1,4 +1,4 @@
-import copy, json, os
+import copy, json, os, pprint
 from xml.dom import minidom as domParser
 
 def hasNumber(inputString):
@@ -145,7 +145,7 @@ def practitionerAddNameFromFoundation(practitionerResource, foundationTag, DOM):
     practitionerResource['name'] = [{}]
     practitionerResource['name'][0]['given'] = name[1].split(' ')
     practitionerResource['name'][0]['family'] = name[0]
-    practitionerResource['name'][0]['prefix'] = ['MD']
+    practitionerResource['name'][0]['prefix'] = ['M.D.']
     practitionerResource['name'][0]['text'] = ' '.join(practitionerResource['name'][0]['given']) + \
                                     ' ' + practitionerResource['name'][0]['family'] + ', ' + \
                                               ', '.join(practitionerResource['name'][0]['prefix'])
@@ -729,6 +729,152 @@ def specimenAddTypeFromFoundation(specimenResource, DOM):
               DOM.getElementsByTagName('SpecSite')[0].childNodes[0].nodeValue
     }
 
+class foundationPractitionerAsserters:
+    def __init__(self):
+        self.practitioners = {
+            'Jo-Anne Vergilio': {
+                'resourceType': "Practitioner",
+                'id': "Vergilio-FM",
+                'name': [{
+                    'use': "official",
+                    'text': "Jo-Anne Vergilio",
+                    'family': "Vergilio",
+                    'given': ["Jo-Anne"],
+                    'prefix': ["M.D."]
+                }],
+                'gender': "female"
+            },
+            'Jeffrey S. Ross': {
+                'resourceType': "Practitioner",
+                'id': "Ross-FM",
+                'name': [{
+                    'use': "official",
+                    'text': "Jeffrey S. Ross",
+                    'family': "Ross",
+                    'given': ["Jeffrey", "S."],
+                    'prefix': ["M.D.", "Medical Director"]
+                }],
+                'gender': "male"
+            },
+            'Shakti Ramkissoon': {
+                'resourceType': "Practitioner",
+                'id': "Ramkissoon-FM",
+                'name': [{
+                    'use': "official",
+                    'text': "Shakti Ramkissoon",
+                    'family': "Ramkissoon",
+                    'given': ["Shakti"],
+                    'prefix': ["M.D."]
+                }],
+                'gender': "male"
+            }
+        }
+        self.numberOfPractitioners = 3
+
+class foundationFhirProvenance:
+    def __init__(self):
+        self.provenanceResource = {
+            'resourceType': "Provenance",
+            'activity': {
+                'system': "http://hl7.org/fhir/v3/DocumentCompletion",
+                'code': "LA",
+                'display': "legally authenticated"
+            }
+        }
+        self.resourceType = "Provenance"
+
+    def getProvenanceId(self):
+        return self.provenanceResource['id']
+
+    def getRecordedTime(self):
+        return self.provenanceResource['recorded']
+
+    def getSignaturesArray(self):
+        return self.provenanceResource['signature']
+
+def provenanceAddId(provenanceResource, diagnosticReportId):
+    provenanceResource['id'] = diagnosticReportId + "-provenance-1"
+
+def provenanceAddRecordedTimeFromFoundation(provenanceResource, DOM):
+    provenanceResource['recorded'] = DOM.getElementsByTagName('ServerTime')[0].childNodes[0].nodeValue.replace(' ', 'T')
+
+def provenanceAddTargetResources(provenanceResource, diagnosticReportId, diagnosticReportDisplay, observationArr):
+    provenanceResource['target'] = []
+    provenanceResource['target'].append({
+        'reference': "DiagnosticReport/" + diagnosticReportId,
+        'display': diagnosticReportDisplay
+    })
+
+    l = len(observationArr)
+    for i in range(0, l, 1):
+        provenanceResource['target'].append({
+            'reference': "Observation/" + observationArr[i].observationResource['id'],
+            'display': observationArr[i].getDisplayString()
+        })
+
+def provenanceAddSignaturesFromFoundation(provenanceResource, foundationPractitionerAsserters, recordedTime, DOM):
+    names = []
+    names.append(DOM.getElementsByTagName('OpName')[0].childNodes[0].nodeValue.strip())
+    namesFromText = DOM.getElementsByTagName('Text')[0].childNodes[0].nodeValue.split('|')
+    l = len(namesFromText)
+    for i in range(0, l, 1):
+        name = namesFromText[i].split(',')[0].strip()
+        if name in names:
+            continue
+        else:
+            names.append(name)
+    provenanceResource['signature'] = []
+    l = len(names)
+    for i in range(0, l, 1):
+        practitionerAsserterResource = foundationPractitionerAsserters.practitioners[names[i]]
+        provenanceResource['signature'].append({
+            'type': [{
+                'system': "http://hl7.org/fhir/ValueSet/signature-type",
+                'code': "1.2.840.10065.1.12.1.6",
+                'display': "Validation Signature"
+            }],
+            'when': recordedTime,
+            'whoReference': {
+                'reference': "Practitioner/" + practitionerAsserterResource['id'],
+                'display': practitionerAsserterResource['name'][0]['text']
+            },
+            'onBehalfOfReference': {
+                'reference': "Organization/FM",
+                'display': "Foundation Medicine"
+            }
+        })
+
+def getPractitionerNamesAndIdsFromSignatures(signatures):
+    practitioners = []
+    l = len(signatures)
+    for i in range(0, l, 1):
+        practitioners.append({
+            'id': signatures[i]['whoReference']['reference'],
+            'name': signatures[i]['whoReference']['display']
+        })
+    return practitioners
+
+def provenanceAddAgentFromFoundation(provenanceResource, practitionerIdsAndNames):
+    provenanceResource['agent'] = []
+    l = len(practitionerIdsAndNames)
+    for i in range(0, l, 1):
+        provenanceResource['agent'].append({
+            'role': {
+                'system': "http://hl7.org/fhir/ValueSet/provenance-agent-role",
+                'code': "attester",
+                'display': "Foundation Medicine Medical Doctor that signed off on the report."
+            },
+            'whoReference': {
+                'reference': practitionerIdsAndNames[i]['id'],
+                'display': practitionerIdsAndNames[i]['name']
+            },
+            'onBehalfOfReference': {
+                'reference': "Organization/FM",
+                'display': "Foundation Medicine"
+            }
+        })
+
+
 class FoundationToFhirBundle:
     def __init__(self):
         self.bundleResource = {
@@ -834,6 +980,14 @@ for f in files:
     diagnosticReportAddSpecimenReference(diagnosticReport.diagnosticReportResource, diagnosticReport.getDiagnosticReportId(), specimen.getSpecimenType())
     diagnosticReportAddContainedArr(diagnosticReport.diagnosticReportResource, observationArr, specimen)
 
+    provenance = foundationFhirProvenance()
+    provenanceAddId(provenance.provenanceResource, diagnosticReport.getDiagnosticReportId())
+    provenanceAddRecordedTimeFromFoundation(provenance.provenanceResource, DOM)
+    provenanceAddTargetResources(provenance.provenanceResource, diagnosticReport.getDiagnosticReportId(), diagnosticReport.getNameOfDiagnosticReport(), observationArr)
+    provenanceAddSignaturesFromFoundation(provenance.provenanceResource, foundationPractitionerAsserters(), provenance.getRecordedTime(), DOM)
+    practitionerIdsAndNames = getPractitionerNamesAndIdsFromSignatures(provenance.getSignaturesArray())
+    provenanceAddAgentFromFoundation(provenance.provenanceResource, practitionerIdsAndNames)
+
     bundle = FoundationToFhirBundle()
     addBundleIdFromFoundation(bundle.bundleResource, diagnosticReport.getDiagnosticReportId())
     bundle.addEntry(FoundationMedicine.organizationResource)
@@ -845,7 +999,10 @@ for f in files:
     bundle.addEntry(condition.conditionResource)
     bundle.addEntry(diagnosticRequest.diagnosticRequestResource)
     bundle.addEntry(specimen.specimenResource)
+    bundle.addEntry(provenance.provenanceResource)
     bundle.addObservationEntries(observationArr)
+
+    pprint.pprint(provenance.provenanceResource)
 
     with open(f.split('.')[0]+'.json', 'w') as outfile:
         json.dump(bundle.bundleResource, outfile)
