@@ -1002,7 +1002,5 @@ for f in files:
     bundle.addEntry(provenance.provenanceResource)
     bundle.addObservationEntries(observationArr)
 
-    pprint.pprint(provenance.provenanceResource)
-
     with open(f.split('.')[0]+'.json', 'w') as outfile:
         json.dump(bundle.bundleResource, outfile)
