@@ -1,4 +1,4 @@
-import copy, json, os, pprint
+import copy, json, os
 from xml.dom import minidom as domParser
 
 def hasNumber(inputString):
@@ -875,7 +875,7 @@ def provenanceAddAgentFromFoundation(provenanceResource, practitionerIdsAndNames
         })
 
 
-class FoundationToFhirBundle:
+class foundationToFhirBundle:
     def __init__(self):
         self.bundleResource = {
             'resourceType': "Bundle",
@@ -988,7 +988,7 @@ for f in files:
     practitionerIdsAndNames = getPractitionerNamesAndIdsFromSignatures(provenance.getSignaturesArray())
     provenanceAddAgentFromFoundation(provenance.provenanceResource, practitionerIdsAndNames)
 
-    bundle = FoundationToFhirBundle()
+    bundle = foundationToFhirBundle()
     addBundleIdFromFoundation(bundle.bundleResource, diagnosticReport.getDiagnosticReportId())
     bundle.addEntry(FoundationMedicine.organizationResource)
     bundle.addEntry(organization.organizationResource)
