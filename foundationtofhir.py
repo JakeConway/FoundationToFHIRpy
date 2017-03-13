@@ -266,7 +266,7 @@ def diagnosticReportAddConclusionFromFoundation(diagnosticReport, DOM):
     diagnosticReport.observationsInReport = alterationCount + sensitizingCount + resistiveCount + clinicalTrialCount
 
 def diagnosticReportAddId(diagnosticReportResource, DOM):
-    diagnosticReportResource['id'] = DOM.getElementsByTagName('ReportId')[0].childNodes[0].nodeValue + \
+    diagnosticReportResource['id'] = DOM.getElementsByTagName('ReportId')[0].childNodes[0].nodeValue + "v" + \
     DOM.getElementsByTagName('Version')[0].childNodes[0].nodeValue
 
 def diagnosticReportAddCategoryFromFoundation(diagnosticReportResource, DOM):
@@ -277,9 +277,9 @@ def diagnosticReportAddCategoryFromFoundation(diagnosticReportResource, DOM):
 def diagnosticReportAddEffectiveDateTimeFromFoundation(diagnosticReportResource, DOM):
     diagnosticReportResource['effectiveDateTime'] = DOM.getElementsByTagName('CollDate')[0].childNodes[0].nodeValue
 
-def diagnosticReportAddSpecimenReference(diagnosticReportResource, reportId, specimenType):
+def diagnosticReportAddSpecimenReference(diagnosticReportResource, specimenId, specimenType):
     diagnosticReportResource['specimen'] = [{
-        'reference': "Specimen/" + reportId + "-specimen-1",
+        'reference': "Specimen/" + specimenId,
         'display': specimenType
     }]
 
@@ -345,7 +345,15 @@ def addReportIdToObservationObj(observationArr, reportId):
     for i in range(0, l, 1):
         observationArr[i].relatedReportId = str(reportId)
 
-def addGeneticsInterpretation(observationArr, interpretation, tracker):
+
+def observationAddReferenceToSpecimen(observationResource, specimenId, specimenType):
+    observationResource['specimen'] = {
+        'reference': "Specimen/" + specimenId,
+        'display': specimenType
+    }
+
+
+def observationAddGeneticsInterpretation(observationArr, interpretation, tracker):
     observationArr[tracker['value']].observationResource['extension'].append({
         'url': "http://hl7.org/fhir/StructureDefinition/observation-geneticsInterpretation",
         'valueCodeableConcept': {
@@ -353,7 +361,7 @@ def addGeneticsInterpretation(observationArr, interpretation, tracker):
         }
     })
 
-def addSequenceVariantTypeFromFoundation(observationArr, alteration, tracker):
+def observationAddSequenceVariantTypeFromFoundation(observationArr, alteration, tracker):
     observationArr[tracker['value']].observationResource['extension'].append({
         'url': "http://hl7.org/fhir/StructureDefinition/observation-geneticsDNASequenceVariantType",
         'valueCodeableConcept': {
@@ -361,7 +369,7 @@ def addSequenceVariantTypeFromFoundation(observationArr, alteration, tracker):
         }
     })
 
-def addAminoAcidChangeFromFoundation(observationArr, alteration, tracker):
+def observationAddAminoAcidChangeFromFoundation(observationArr, alteration, tracker):
     observationArr[tracker['value']].observationResource['extension'].append({
         'url': "http://hl7.org/fhir/StructureDefinition/observation-geneticsAminoAcidChangeName",
         'valueCodeableConcept': {
@@ -446,7 +454,7 @@ def extractRelatedTherapies(observationArr, geneDOM, gene, tracker, therapiesUse
             therapyGrabRelatedArtifactsReferenceId(therapyDOMs[i], observationArr[tracker['value']].observationResource['extension'])
             tracker['value'] = tracker['value'] + 1
 
-def extractGenomicInfoInOrder(observationArr, genesDOM, genes, tracker):
+def extractGenomicInfoInOrder(observationArr, genesDOM, genes, specimenId, specimenType, tracker):
     geneDOMs = genesDOM.getElementsByTagName('Gene')
     # keep track of what index the genes are in the observation array to relate them to their suggested clinical trials
     l = len(geneDOMs)
@@ -471,10 +479,11 @@ def extractGenomicInfoInOrder(observationArr, genesDOM, genes, tracker):
         alterationDOM = geneDOMs[i].getElementsByTagName('Alteration')
         alteration = alterationDOM[0].getElementsByTagName('Name')[0].childNodes[0].nodeValue
         if (hasNumber(alteration) is True):
-            addAminoAcidChangeFromFoundation(observationArr, alteration, tracker)
+            observationAddAminoAcidChangeFromFoundation(observationArr, alteration, tracker)
         else:
-            addSequenceVariantTypeFromFoundation(observationArr, alteration, tracker)
-        addGeneticsInterpretation(observationArr, alterationDOM[0].getElementsByTagName('Interpretation')[0].childNodes[0].nodeValue, tracker)
+            observationAddSequenceVariantTypeFromFoundation(observationArr, alteration, tracker)
+        observationAddGeneticsInterpretation(observationArr, alterationDOM[0].getElementsByTagName('Interpretation')[0].childNodes[0].nodeValue, tracker)
+        observationAddReferenceToSpecimen(observationArr[tracker['value']].observationResource, specimenId, specimenType)
         observationArr[tracker['value']].observationResource['related'] = []
         observationArr[tracker['value']].display = 'A genomic alteration in ' + gene
         geneGrabRelatedArtifactsReferenceId(geneDOMs[i], observationArr[tracker['value']].observationResource['extension'])
@@ -538,11 +547,11 @@ def extractRelatedClinicalTrials(observationArr, trialsDOM, genes, tracker):
             tracker['value'] = tracker['value'] + 1
 
 
-def observationAddGenomicInfoFromFoundation(observationArr, DOM):
+def observationAddGenomicInfoFromFoundation(observationArr, specimenId, specimenType, DOM):
     genesDOM = DOM.getElementsByTagName('Genes')[0]
     trackerObj = {'value': 0}
     genes = {}
-    extractGenomicInfoInOrder(observationArr, genesDOM, genes, trackerObj)
+    extractGenomicInfoInOrder(observationArr, genesDOM, genes, specimenId, specimenType, trackerObj)
     extractRelatedClinicalTrials(observationArr, DOM, genes, trackerObj)
 
 def addPatientSubjectReferenceToObservations(observationArr, patientId, patientName):
@@ -557,6 +566,10 @@ def observationAddEffectiveDateTimeFromFoundation(observationArr, date):
     l = len(observationArr)
     for i in range(0, l, 1):
         observationArr[i].observationResource['effectiveDateTime'] = date
+
+def singleObservationAddDateTimeFromFoundation(observationResource, date):
+    observationResource['effectiveDateTime'] = date
+
 
 def relateObservations(observationArr):
     l = len(observationArr)
@@ -616,7 +629,7 @@ def conditionAddCodeFromFoundation(conditionResource, DOM):
 
 def conditionAddBodySiteFromFoundation(conditionResource, DOM):
     conditionResource['bodySite'] = [{
-        'text': DOM.getElementsByTagName('variant-report')[0].getAttribute('disease').lower()
+        'text': DOM.getElementsByTagName('variant-report')[0].getAttribute('tissue-of-origin').lower()
     }]
 
 def conditionAddEvidenceDetailReference(conditionResource, diagnosticReportId, DOM):
@@ -684,8 +697,8 @@ class foundationFhirSpecimen:
     def getSpecimenCollector(self):
         return self.specimenResource['collection']['collector']['display']
 
-def specimenAddId(specimenResource, reportId):
-    specimenResource['id'] = reportId + "-specimen-1"
+def specimenAddId(specimenResource, DOM):
+    specimenResource['id'] = DOM.getElementsByTagName('SampleId')[0].childNodes[0].nodeValue
 
 # pathologist doesn't have actual ID
 def specimenAddPathologistAsCollector(specimenResource, pathologistID, pathologistName):
@@ -697,7 +710,7 @@ def specimenAddPathologistAsCollector(specimenResource, pathologistID, pathologi
 def specimenAddNoteFromFoundation(specimenResource, DOM):
     applicationSetting = DOM.getElementsByTagName('ApplicationSetting')
     try:
-        statement = applicationSetting[0].getElementsByTagName("Value")[0].childNodes[0].nodeValue
+        statement = applicationSetting[0].getElementsByTagName('Value')[0].childNodes[0].nodeValue
     except:
         statement = ""
     specimenResource['note'] = [{
@@ -728,6 +741,245 @@ def specimenAddTypeFromFoundation(specimenResource, DOM):
         'text': DOM.getElementsByTagName('SpecFormat')[0].childNodes[0].nodeValue + " from " +
               DOM.getElementsByTagName('SpecSite')[0].childNodes[0].nodeValue
     }
+
+class foundationFhirSequence:
+    def __init__(self):
+        self.sequenceResource = {
+            'resourceType': "Sequence"
+        }
+        self.resourceType = "Sequence"
+
+    def getSequenceId(self):
+        return self.sequenceResource['id']
+
+def sequenceAddTypeFromFoundation(sequenceResource, nucleicAcidType):
+    sequenceResource['type'] = nucleicAcidType
+
+
+def sequenceAddRefSeqChromosome(sequenceResource, element):
+    sequenceResource['referenceSeq'] = {
+        'chromosome': {
+            'text': element.getAttribute('position').split(':')[0]
+        }
+    }
+
+def sequenceAddReferenceToSpecimen(sequenceResource, specimenId, specimenType):
+    sequenceResource['specimen'] = {
+        'reference': "Specimen/" + specimenId,
+        'display': specimenType
+    }
+
+def variantReportAddGeneNameFromFoundation(observationResource, element):
+    observationResource['extension'].append({
+        'url': "http://hl7.org/fhir/StructureDefinition/observation-geneticsGene",
+        'valueCodeableConcept': {
+            'text': element.getAttribute('gene')
+        }
+    })
+
+def variantReportAddReferenceToSequence(observationResource, sequenceId):
+    observationResource['extension'].append({
+        'url': "http://hl7.org/fhir/StructureDefinition/observation-geneticsSequence",
+        'valueReference': {
+            'reference': "Sequence/" + sequenceId,
+            'display': "A short variant from a Foundation Medicine variant-report"
+        }
+    })
+
+def sequenceAddShortVariantId(sequenceResource, reportId, variantNumber):
+    sequenceResource['id'] = reportId + "-short-variant-" + str(variantNumber) + "-seq"
+
+def sequenceShortVariantAddVariantFromFoundation(sequenceResource, shortVariant):
+    position = shortVariant.getAttribute('position').split(':')[1]
+    variant = shortVariant.getAttribute('cds-effect')
+    if('>' in variant):
+        variant = ''.join([i for i in variant if not i.isdigit() and not i.islower()]).split('>')
+    elif ('<' in variant):
+        variant = ''.join([i for i in variant if not i.isdigit() and not i.islower()]).split('<')
+    elif ('ins' in variant):
+        variant = [''.join([i for i in variant if not i.isdigit() and not i.islower()]).split('_')[1], '_']
+    elif ('del' in variant):
+        variant = ['_', ''.join([i for i in variant if not i.isdigit() and not i.islower()]).split('_')[1]]
+
+    sequenceResource['variant'] = [{
+        'start': position,
+        'end': position,
+        'observedAllele': variant[0],
+        'referenceAllele': variant[1]
+    }]
+
+
+def sequenceShortVariantAddCoverageFromFoundation(sequenceResource, shortVariant):
+    sequenceResource['readCoverage'] = shortVariant.getAttribute('depth')
+
+def addShortVariantId(observationResource, reportId, variantNumber):
+    observationResource['id'] = reportId + "-short-variant-" + str(variantNumber)
+
+def addShortVariantAminoAcidTypeFromFoundation(observationResource, shortVariant):
+    observationResource['extension'].append({
+        'url': "http://hl7.org/fhir/StructureDefinition/observation-geneticsAminoAcidChangeType",
+        'valueCodeableConcept': {
+            'text': shortVariant.getAttribute('functional-effect')
+        }
+    })
+
+def addShortVariantDnaSequenceVariantName(observationResource, shortVariant):
+    observationResource['extension'].append({
+        'url': "http://hl7.org/fhir/StructureDefinition/observation-geneticsDNASequenceVariantName",
+        'valueCodeableConcept': {
+            'text': shortVariant.getAttribute('cds-effect')
+        }
+    })
+
+def addShortVariantDnaSequenceVariantType(observationResource, shortVariant):
+    variant = shortVariant.getAttribute('cds-effect')
+    if ('>' in variant or '<' in variant):
+        type = "substitution"
+
+    elif ('del' in variant):
+        type = "deletion"
+
+    elif ('ins' in variant):
+        type = "insertion"
+
+    observationResource['extension'].append({
+        'url': "http://hl7.org/fhir/StructureDefinition/observation-geneticsDNASequenceVariantType",
+             'valueCodeableConcept': {
+            'text': type
+        }
+    })
+
+
+def addShortVariantAminoAcidChangeFromFoundation(observationResource, shortVariant):
+    observationResource['extension'].append({
+        'url': "http://hl7.org/fhir/StructureDefinition/observation-geneticsAminoAcidChange",
+        'valueCodeableConcept': {
+            'text': shortVariant.getAttribute('protein-effect')
+        }
+    })
+
+def addShortVariantAlleleFrequencyFromFoundation(observationResource, shortVariant):
+    observationResource['extension'].append({
+        'url': "http://hl7.org/fhir/StructureDefinition/observation-geneticsAllelicFrequency",
+        'valueDecimal': shortVariant.getAttribute('allele-fraction')
+    })
+
+# Not part of DSTU3
+def addShortVariantTranscriptIdFromFoundation(observationResource, shortVariant):
+    observationResource['extension'].append({
+        'url': "http://hl7.org/fhir/StructureDefinition/observation-geneticsTranscriptReferenceSequenceId",
+        'valueCodeableConcept': {
+            'text': shortVariant.getAttribute('transcript')
+        }
+    })
+
+def observationAndSequenceAddShortVariantInfo(observationArr, sequenceArr, shortVariant, nucleicAcidType, date, specimen, patient, reportId, variantNumber):
+    sequence = foundationFhirSequence()
+    sequenceAddShortVariantId(sequence.sequenceResource, reportId, variantNumber)
+    sequenceShortVariantAddCoverageFromFoundation(sequence.sequenceResource, shortVariant)
+    sequenceAddRefSeqChromosome(sequence.sequenceResource, shortVariant)
+    sequenceShortVariantAddVariantFromFoundation(sequence.sequenceResource, shortVariant)
+    sequenceAddReferenceToSpecimen(sequence.sequenceResource, specimen.getSpecimenId(), specimen.getSpecimenType())
+    sequenceAddTypeFromFoundation(sequence.sequenceResource, nucleicAcidType)
+    addPatientSubjectReference(sequence.sequenceResource, patient.getPatientId(), patient.getPatientFullName())
+    addFoundationAsPerformer(sequence.sequenceResource)
+    sequenceArr.append(sequence)
+
+    observation = foundationFhirObservation()
+    addShortVariantId(observation.observationResource, reportId, variantNumber)
+    addShortVariantTranscriptIdFromFoundation(observation.observationResource, shortVariant)
+    addShortVariantAlleleFrequencyFromFoundation(observation.observationResource, shortVariant)
+    variantReportAddGeneNameFromFoundation(observation.observationResource, shortVariant)
+    addShortVariantAminoAcidChangeFromFoundation(observation.observationResource, shortVariant)
+    addShortVariantAminoAcidTypeFromFoundation(observation.observationResource, shortVariant)
+    addShortVariantDnaSequenceVariantName(observation.observationResource, shortVariant)
+    addShortVariantDnaSequenceVariantType(observation.observationResource, shortVariant)
+    variantReportAddReferenceToSequence(observation.observationResource, sequence.getSequenceId())
+    singleObservationAddDateTimeFromFoundation(observation.observationResource, date)
+    observationAddReferenceToSpecimen(observation.observationResource, specimen.getSpecimenId(), specimen.getSpecimenType())
+    addPatientSubjectReference(observation.observationResource, patient.getPatientId(), patient.getPatientFullName())
+    addFoundationAsPerformer(observation.observationResource)
+    observationArr.append(observation)
+
+def addVariantReportShortVariantSequencesAndObservations(observationArr, sequenceArr, diagnosticReport, specimen, patient, DOM):
+    shortVariants = DOM.getElementsByTagName('short-variant')
+    date = diagnosticReport.getReportDate()
+    reportId = diagnosticReport.getDiagnosticReportId()
+    l = len(shortVariants)
+    for i in range(0, l, 1):
+        nucleicAcidType = DOM.getElementsByTagName('sample')[0].getAttribute('nucleic-acid-type')
+        observationAndSequenceAddShortVariantInfo(observationArr, sequenceArr, shortVariants[i], nucleicAcidType, date, specimen, patient, reportId, i+1)
+
+def sequenceAddCopyNumberAlterationId(sequenceResource, reportId, variantNumber):
+    sequenceResource['id'] = reportId + "-copy-number-alt-" + str(variantNumber) + "-seq"
+
+def addCopyNumberAlterationId(observationResource, reportId, variantNumber):
+    observationResource['id'] = reportId + "-copy-number-alt-" + str(variantNumber)
+
+def addCopyNumberAlterationEventFromFoundation(observationResource, copyNumberAlt):
+    observationResource['extension'].append({
+        'url': "http://hl7.org/fhir/StructureDefinition/observation-geneticsCopyNumberEvent",
+        'valueCodeableConcept': {
+            'text': "Copy number: " + copyNumberAlt.getAttribute('copy-number')
+        }
+    })
+
+def addCopyNumberAlterationSequenceVariantType(observationResource, copyNumberAlt):
+    observationResource['extension'].append({
+        'url': "http://hl7.org/fhir/StructureDefinition/observation-geneticsDNASequenceVariantType",
+        'valueCodeableConcept': {
+            'text': copyNumberAlt.getAttribute('type')
+        }
+    })
+
+def sequenceCopyNumberAlterationAddStructureVariantFromFoundation(sequenceResource, copyNumberAlt):
+    position = copyNumberAlt.getAttribute('position').split(':')[1].split('-')
+    sequenceResource['structureVariant'] = [{
+        'precisionOfBoundaries': copyNumberAlt.getAttribute('status') + " structural variant",
+        'reportedaCGHRatio': copyNumberAlt.getAttribute('ratio'),
+        'length': int(position[1]) - int(position[0]),
+        'outer': {
+            'start': position[0],
+            'end': position[1]
+        },
+        'inner': {
+            'start': position[0],
+            'end': position[1]
+        }
+    }]
+
+def observationAndSequenceAddCopyNumberAlterationInfo(observationArr, sequenceArr, copyNumberAlt, nucleicAcidType, date, specimen, patient, reportId, variantNumber):
+    sequence = foundationFhirSequence()
+    sequenceAddCopyNumberAlterationId(sequence.sequenceResource, reportId, variantNumber)
+    sequenceCopyNumberAlterationAddStructureVariantFromFoundation(sequence.sequenceResource, copyNumberAlt)
+    sequenceAddReferenceToSpecimen(sequence.sequenceResource, specimen.getSpecimenId(), specimen.getSpecimenType())
+    sequenceAddTypeFromFoundation(sequence.sequenceResource, nucleicAcidType)
+    sequenceAddRefSeqChromosome(sequence.sequenceResource, copyNumberAlt)
+    addPatientSubjectReference(sequence.sequenceResource, patient.getPatientId(), patient.getPatientFullName())
+    addFoundationAsPerformer(sequence.sequenceResource)
+    sequenceArr.append(sequence)
+
+    observation = foundationFhirObservation()
+    addCopyNumberAlterationId(observation.observationResource, reportId, variantNumber)
+    variantReportAddGeneNameFromFoundation(observation.observationResource, copyNumberAlt)
+    variantReportAddReferenceToSequence(observation.observationResource, sequence.getSequenceId())
+    addCopyNumberAlterationEventFromFoundation(observation.observationResource, copyNumberAlt)
+    addCopyNumberAlterationSequenceVariantType(observation.observationResource, copyNumberAlt)
+    singleObservationAddDateTimeFromFoundation(observation.observationResource, date)
+    observationAddReferenceToSpecimen(observation.observationResource, specimen.getSpecimenId(), specimen.getSpecimenType())
+    addPatientSubjectReference(observation.observationResource, patient.getPatientId(), patient.getPatientFullName())
+    addFoundationAsPerformer(observation.observationResource)
+    observationArr.append(observation)
+
+def addVariantReportCopyNumberAlterationSequencesAndObservations(observationArr, sequenceArr, diagnosticReport, specimen, patient, DOM):
+    copyNumberAlterations = DOM.getElementsByTagName('copy-number-alteration')
+    date = diagnosticReport.getReportDate()
+    reportId = diagnosticReport.getDiagnosticReportId()
+    l = len(copyNumberAlterations)
+    for i in range(0, l, 1):
+        nucleicAcidType = DOM.getElementsByTagName('sample')[0].getAttribute('nucleic-acid-type')
+        observationAndSequenceAddCopyNumberAlterationInfo(observationArr, sequenceArr, copyNumberAlterations[i], nucleicAcidType, date, specimen, patient, reportId, i+1)
+
 
 class foundationPractitionerAsserters:
     def __init__(self):
@@ -769,6 +1021,7 @@ class foundationPractitionerAsserters:
                 'gender': "male"
             }
         }
+        self.resourceType = "Practitioner"
         self.numberOfPractitioners = 3
 
 class foundationFhirProvenance:
@@ -895,6 +1148,13 @@ class foundationToFhirBundle:
                 'resource': observationArr[i].observationResource
             })
 
+    def addSequenceEntries(self, sequenceArr):
+        l = len(sequenceArr)
+        for i in range(0, l, 1):
+            self.bundleResource['entry'].append({
+                'resource': sequenceArr[i].sequenceResource
+            })
+
 def addBundleIdFromFoundation(bundleResource, reportId):
     bundleResource['id'] = "FoundationMedicine-" + reportId
 
@@ -937,17 +1197,6 @@ for f in files:
     addPatientSubjectReference(diagnosticReport.diagnosticReportResource, patient.getPatientId(), patient.getPatientFullName())
     addFoundationAsPerformer(diagnosticReport.diagnosticReportResource)
 
-    observationArr = []
-    initObservations(observationArr, diagnosticReport.getObservationsInReportCount())
-    # add report id to observation objects since it is used to make the ID of all clinical resources
-    addReportIdToObservationObj(observationArr, diagnosticReport.getDiagnosticReportId())
-    addPatientSubjectReferenceToObservations(observationArr, patient.getPatientId(), patient.getPatientFullName())
-    # we add id to observations when adding genomic information..
-    # this is so we can link genomic alterations to therapies and clinical trials
-    observationAddGenomicInfoFromFoundation(observationArr, DOM)
-    observationAddEffectiveDateTimeFromFoundation(observationArr, diagnosticReport.getReportDate())
-    relateObservations(observationArr)
-
     condition = foundationFhirCondition()
     conditionAddId(condition.conditionResource, patient.getPatientId())
     conditionAddCodeFromFoundation(condition.conditionResource, DOM)
@@ -964,7 +1213,7 @@ for f in files:
     addFoundationAsPerformer(diagnosticRequest.diagnosticRequestResource)
 
     specimen = foundationFhirSpecimen()
-    specimenAddId(specimen.specimenResource, diagnosticReport.getDiagnosticReportId())
+    specimenAddId(specimen.specimenResource, DOM)
     # actual pathologist ID is unknown! Using made up one here based off patient ID (see above)
     specimenAddPathologistAsCollector(specimen.specimenResource, pathologist.getPractitionerId(), pathologist.getPractitionerName())
     specimenAddCollectionInfoFromFoundation(specimen.specimenResource, DOM)
@@ -974,10 +1223,28 @@ for f in files:
     specimenAddNoteFromFoundation(specimen.specimenResource, DOM)
     addPatientSubjectReference(specimen.specimenResource, patient.getPatientId(), patient.getPatientFullName())
 
+    observationArr = []
+    initObservations(observationArr, diagnosticReport.getObservationsInReportCount())
+    # add report id to observation objects since it is used to make the ID of all clinical resources
+    addReportIdToObservationObj(observationArr, diagnosticReport.getDiagnosticReportId())
+    addPatientSubjectReferenceToObservations(observationArr, patient.getPatientId(), patient.getPatientFullName())
+    # we add id to observations when adding genomic information..
+    # this is so we can link genomic alterations to therapies and clinical trials
+    observationAddGenomicInfoFromFoundation(observationArr, specimen.getSpecimenId(), specimen.getSpecimenType(), DOM)
+    observationAddEffectiveDateTimeFromFoundation(observationArr, diagnosticReport.getReportDate())
+    relateObservations(observationArr)
+
+    sequenceArr = []
+    variantReportObservations = []
+    addVariantReportShortVariantSequencesAndObservations(variantReportObservations, sequenceArr, diagnosticReport, specimen, patient, DOM)
+    addVariantReportCopyNumberAlterationSequencesAndObservations(variantReportObservations, sequenceArr, diagnosticReport, specimen, patient, DOM)
+
+    observationArr = observationArr + variantReportObservations
+
     # go back and link all of the observations to the diagnostic report
     diagnosticReportReferenceObservations(diagnosticReport.diagnosticReportResource, observationArr)
     # also add link specimen back to report, and put them all in contained field for easier access
-    diagnosticReportAddSpecimenReference(diagnosticReport.diagnosticReportResource, diagnosticReport.getDiagnosticReportId(), specimen.getSpecimenType())
+    diagnosticReportAddSpecimenReference(diagnosticReport.diagnosticReportResource, specimen.getSpecimenId(), specimen.getSpecimenType())
     diagnosticReportAddContainedArr(diagnosticReport.diagnosticReportResource, observationArr, specimen)
 
     provenance = foundationFhirProvenance()
@@ -1000,6 +1267,7 @@ for f in files:
     bundle.addEntry(diagnosticRequest.diagnosticRequestResource)
     bundle.addEntry(specimen.specimenResource)
     bundle.addEntry(provenance.provenanceResource)
+    bundle.addSequenceEntries(sequenceArr)
     bundle.addObservationEntries(observationArr)
 
     with open(f.split('.')[0]+'.json', 'w') as outfile:
