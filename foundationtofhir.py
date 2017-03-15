@@ -277,8 +277,8 @@ def diagnosticReportAddCategoryFromFoundation(diagnosticReportResource, DOM):
 def diagnosticReportAddEffectiveDateTimeFromFoundation(diagnosticReportResource, DOM):
     diagnosticReportResource['effectiveDateTime'] = DOM.getElementsByTagName('CollDate')[0].childNodes[0].nodeValue
 
-def diagnosticReportAddSpecimenReference(diagnosticReportResource, specimenId, specimenType):
-    diagnosticReportResource['specimen'] = [{
+def addSpecimenReference(resource, specimenId, specimenType):
+    resource['specimen'] = [{
         'reference': "Specimen/" + specimenId,
         'display': specimenType
     }]
@@ -640,35 +640,43 @@ def conditionAddEvidenceDetailReference(conditionResource, diagnosticReportId, D
                  DOM.getElementsByTagName('CollDate')[0].childNodes[0].nodeValue + " by Foundation Medicine"
     }]
 
-class foundationFhirDiagnosticRequest:
+class foundationFhirProcedureRequest:
     def __init__(self):
-        self.diagnosticRequestResource = {
-            'resourceType': "DiagnosticRequest",
+        self.procedureRequestResource = {
+            'resourceType': "ProcedureRequest",
             'status': "completed",
             'intent': "order"
         }
-        self.resourceType = "DiagnosticRequest"
+        self.resourceType = "ProcedureRequest"
 
-    def getDiagnosticRequestId(self):
-        return self.diagnosticRequestResource['id']
+    def getProcedureRequestId(self):
+        return self.procedureRequestResource['id']
 
-    def getDiagnosticRequestNote(self):
-        return self.diagnosticRequestResource['note']
+    def getProcedureRequestNote(self):
+        return self.procedureRequestResource['note'][0]['text']
 
-def diagnosticRequestAddId(diagnosticRequestResource, diagnosticReportId):
-    diagnosticRequestResource['id'] = diagnosticReportId + "-request-1"
+def procedureRequestAddId(procedureRequestResource, diagnosticReportId):
+    procedureRequestResource['id'] = diagnosticReportId + "-request-1"
 
-def diagnosticRequestAddNote(diagnosticRequestResource, diagnosticReportTestPerformed):
-    diagnosticRequestResource['note'] = "This is a request for a " + diagnosticReportTestPerformed
+def procedureRequestAddNote(procedureRequestResource, diagnosticReportTestPerformed):
+    procedureRequestResource['note'] = [{
+        'text': "This is a request for a " + diagnosticReportTestPerformed
+    }]
 
-def diagnosticRequestAddRequester(diagnosticRequestResource, orderingMDId, orderingMDName):
-    diagnosticRequestResource['requester'] = {
-        'reference': "Practitioner/" + orderingMDId,
-        'display': orderingMDName
+def procedureRequestAddRequester(procedureRequestResource, orderingPhysician, organization):
+    procedureRequestResource['requester'] = {
+        'agent': {
+            'reference': "Practitioner/" + orderingPhysician.getPractitionerId(),
+            'display': orderingPhysician.getPractitionerName()
+        },
+        'onBehalfOf': {
+            'reference': "Organization/" + organization.getOrganizationId(),
+            'display': organization.getOrganizationName()
+        }
     }
 
-def diagnosticRequestAddreasonReference(diagnosticRequestResource, conditionId, condition):
-    diagnosticRequestResource['reasonReference'] = [{
+def procedureRequestAddreasonReference(procedureRequestResource, conditionId, condition):
+    procedureRequestResource['reasonReference'] = [{
         'reference': "Condition/" + conditionId,
         'display': condition
     }]
@@ -728,7 +736,7 @@ def specimenAddCollectionInfoFromFoundation(specimenResource, DOM):
 
 def specimenAddRequestReference(specimenResource, resourceID, resourceText):
     specimenResource['request'] = [{
-        'reference': "DiagnosticRequest/" + resourceID,
+        'reference': "ProcedureRequest/" + resourceID,
         'display': resourceText
     }]
 
@@ -1204,22 +1212,24 @@ for f in files:
     conditionAddEvidenceDetailReference(condition.conditionResource, diagnosticReport.getDiagnosticReportId(), DOM)
     addPatientSubjectReference(condition.conditionResource, patient.getPatientId(), patient.getPatientFullName())
 
-    diagnosticRequest = foundationFhirDiagnosticRequest()
-    diagnosticRequestAddId(diagnosticRequest.diagnosticRequestResource, diagnosticReport.getDiagnosticReportId())
-    diagnosticRequestAddNote(diagnosticRequest.diagnosticRequestResource, diagnosticReport.getDiagnosticReportTestPerformed())
-    diagnosticRequestAddreasonReference(diagnosticRequest.diagnosticRequestResource, condition.getConditionId(), condition.getCondition())
-    diagnosticRequestAddRequester(diagnosticRequest.diagnosticRequestResource, orderingPhysician.getPractitionerId(), orderingPhysician.getPractitionerName())
-    addPatientSubjectReference(diagnosticRequest.diagnosticRequestResource, patient.getPatientId(), patient.getPatientFullName())
-    addFoundationAsPerformer(diagnosticRequest.diagnosticRequestResource)
+    procedureRequest = foundationFhirProcedureRequest()
+    procedureRequestAddId(procedureRequest.procedureRequestResource, diagnosticReport.getDiagnosticReportId())
+    procedureRequestAddNote(procedureRequest.procedureRequestResource, diagnosticReport.getDiagnosticReportTestPerformed())
+    procedureRequestAddreasonReference(procedureRequest.procedureRequestResource, condition.getConditionId(), condition.getCondition())
+    procedureRequestAddRequester(procedureRequest.procedureRequestResource, orderingPhysician, organization)
+    addPatientSubjectReference(procedureRequest.procedureRequestResource, patient.getPatientId(), patient.getPatientFullName())
+    addFoundationAsPerformer(procedureRequest.procedureRequestResource)
 
     specimen = foundationFhirSpecimen()
     specimenAddId(specimen.specimenResource, DOM)
+    specimenAddTypeFromFoundation(specimen.specimenResource, DOM)
+    # add specimen reference to procedureRequest, which is initialized above
+    addSpecimenReference(procedureRequest.procedureRequestResource, specimen.getSpecimenId(), specimen.getSpecimenType())
     # actual pathologist ID is unknown! Using made up one here based off patient ID (see above)
     specimenAddPathologistAsCollector(specimen.specimenResource, pathologist.getPractitionerId(), pathologist.getPractitionerName())
     specimenAddCollectionInfoFromFoundation(specimen.specimenResource, DOM)
     specimenAddReceivedTimeFromFoundation(specimen.specimenResource, DOM)
-    specimenAddTypeFromFoundation(specimen.specimenResource, DOM)
-    specimenAddRequestReference(specimen.specimenResource, diagnosticRequest.getDiagnosticRequestId(), diagnosticRequest.getDiagnosticRequestNote())
+    specimenAddRequestReference(specimen.specimenResource, procedureRequest.getProcedureRequestId(), procedureRequest.getProcedureRequestNote())
     specimenAddNoteFromFoundation(specimen.specimenResource, DOM)
     addPatientSubjectReference(specimen.specimenResource, patient.getPatientId(), patient.getPatientFullName())
 
@@ -1244,7 +1254,7 @@ for f in files:
     # go back and link all of the observations to the diagnostic report
     diagnosticReportReferenceObservations(diagnosticReport.diagnosticReportResource, observationArr)
     # also add link specimen back to report, and put them all in contained field for easier access
-    diagnosticReportAddSpecimenReference(diagnosticReport.diagnosticReportResource, specimen.getSpecimenId(), specimen.getSpecimenType())
+    addSpecimenReference(diagnosticReport.diagnosticReportResource, specimen.getSpecimenId(), specimen.getSpecimenType())
     diagnosticReportAddContainedArr(diagnosticReport.diagnosticReportResource, observationArr, specimen)
 
     provenance = foundationFhirProvenance()
@@ -1264,7 +1274,7 @@ for f in files:
     bundle.addEntry(pathologist.practitionerResource)
     bundle.addEntry(diagnosticReport.diagnosticReportResource)
     bundle.addEntry(condition.conditionResource)
-    bundle.addEntry(diagnosticRequest.diagnosticRequestResource)
+    bundle.addEntry(procedureRequest.procedureRequestResource)
     bundle.addEntry(specimen.specimenResource)
     bundle.addEntry(provenance.provenanceResource)
     bundle.addSequenceEntries(sequenceArr)
