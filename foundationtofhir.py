@@ -248,6 +248,7 @@ class foundationFhirDiagnosticReport:
 
 def diagnosticReportAddConclusionFromFoundation(diagnosticReport, DOM):
     summary = DOM.getElementsByTagName('Summaries')[0]
+    genesDOM = DOM.getElementsByTagName('Genes')[0]
     alterationCount = int(summary.getAttribute('alterationCount'))
     sensitizingCount = int(summary.getAttribute('sensitizingCount'))
     resistiveCount = int(summary.getAttribute('resistiveCount'))
@@ -263,7 +264,7 @@ def diagnosticReportAddConclusionFromFoundation(diagnosticReport, DOM):
     " genomic alterations | " + str(sensitizingCount) + " therapies associated with potential clinical benefit | " + \
     str(resistiveCount) + " therapies associated with lack of response | " + str(clinicalTrialCount) + " clinical trials. " + \
     statement
-    diagnosticReport.observationsInReport = alterationCount + sensitizingCount + resistiveCount + clinicalTrialCount
+    diagnosticReport.observationsInReport = len(genesDOM.getElementsByTagName('Gene')) + sensitizingCount + resistiveCount + clinicalTrialCount
 
 def diagnosticReportAddId(diagnosticReportResource, DOM):
     diagnosticReportResource['id'] = DOM.getElementsByTagName('ReportId')[0].childNodes[0].nodeValue + "v" + \
@@ -1105,7 +1106,7 @@ def addVariantReportRearrangementSequencesAndObservations(observationArr, sequen
     for i in range(0, l, 1):
         observationAndSequenceAddRearrangementInfo(observationArr, sequenceArr, rearrangements[i], nucleicAcidType, date, specimen, patient, reportId, i+1)
 
-
+# Only use if want to self define practitioner resources for employees... see commented out in provenanceAddSignaturesFromFoundation() function
 class foundationPractitionerAsserters:
     def __init__(self):
         self.practitioners = {
@@ -1148,6 +1149,7 @@ class foundationPractitionerAsserters:
         }
         self.resourceType = "Practitioner"
         self.numberOfPractitioners = 3
+
 
 class foundationFhirProvenance:
     def __init__(self):
@@ -1204,7 +1206,21 @@ def provenanceAddSignaturesFromFoundation(provenanceResource, foundationPractiti
     provenanceResource['signature'] = []
     l = len(names)
     for i in range(0, l, 1):
-        practitionerAsserterResource = foundationPractitionerAsserters.practitioners[names[i]]
+        nameArr = names[i].split(' ')
+        lastName = nameArr[len(nameArr) - 1]
+        nameArr.pop()
+        practitionerAsserterResource = {
+            'resourceType': "Practitioner",
+            'id': lastName + "-FM",
+            'name': [{
+                'use': "official",
+                'text': name[i],
+                'family': lastName,
+                'given': nameArr,
+                'prefix': ["M.D."]
+            }]
+        }
+        # practitionerAsserterResource = foundationPractitionerAsserters.practitioners[names[i]]
         provenanceResource['signature'].append({
             'type': [{
                 'system': "http://hl7.org/fhir/ValueSet/signature-type",
