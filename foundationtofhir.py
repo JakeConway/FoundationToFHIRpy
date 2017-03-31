@@ -938,7 +938,7 @@ def addVariantReportShortVariantSequencesAndObservations(observationArr, sequenc
     shortVariants = DOM.getElementsByTagName('short-variant')
     date = diagnosticReport.getReportDate()
     reportId = diagnosticReport.getDiagnosticReportId()
-    nucleicAcidType = DOM.getElementsByTagName('sample')[0].getAttribute('nucleic-acid-type')
+    nucleicAcidType = DOM.getElementsByTagName('sample')[0].getAttribute('nucleic-acid-type').lower()
     l = len(shortVariants)
     for i in range(0, l, 1):
         observationAndSequenceAddShortVariantInfo(observationArr, sequenceArr, shortVariants[i], nucleicAcidType, date, specimen, patient, reportId, i+1)
@@ -1000,7 +1000,7 @@ def addVariantReportCopyNumberAlterationSequencesAndObservations(observationArr,
     copyNumberAlterations = DOM.getElementsByTagName('copy-number-alteration')
     date = diagnosticReport.getReportDate()
     reportId = diagnosticReport.getDiagnosticReportId()
-    nucleicAcidType = DOM.getElementsByTagName('sample')[0].getAttribute('nucleic-acid-type')
+    nucleicAcidType = DOM.getElementsByTagName('sample')[0].getAttribute('nucleic-acid-type').lower()
     l = len(copyNumberAlterations)
     for i in range(0, l, 1):
         observationAndSequenceAddCopyNumberAlterationInfo(observationArr, sequenceArr, copyNumberAlterations[i], nucleicAcidType, date, specimen, patient, reportId, i+1)
@@ -1111,7 +1111,7 @@ def addVariantReportRearrangementSequencesAndObservations(observationArr, sequen
     date = diagnosticReport.getReportDate()
     reportId = diagnosticReport.getDiagnosticReportId()
     # might need to account for more than 1 sample
-    nucleicAcidType = DOM.getElementsByTagName('sample')[0].getAttribute('nucleic-acid-type')
+    nucleicAcidType = DOM.getElementsByTagName('sample')[0].getAttribute('nucleic-acid-type').lower()
     l = rearrangements.length
     for i in range(0, l, 1):
         observationAndSequenceAddRearrangementInfo(observationArr, sequenceArr, rearrangements[i], nucleicAcidType, date, specimen, patient, reportId, i+1)
