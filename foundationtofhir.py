@@ -141,14 +141,24 @@ def practitionerAddRoleFromFoundation(practitionerResource, foundationTag, organ
 
 def practitionerAddNameFromFoundation(practitionerResource, foundationTag, DOM):
     name = DOM.getElementsByTagName(foundationTag)[0].childNodes[0].nodeValue
-    name = name.split(', ')
-    practitionerResource['name'] = [{}]
-    practitionerResource['name'][0]['given'] = name[1].split(' ')
-    practitionerResource['name'][0]['family'] = name[0]
-    practitionerResource['name'][0]['prefix'] = ['M.D.']
-    practitionerResource['name'][0]['text'] = ' '.join(practitionerResource['name'][0]['given']) + \
-                                    ' ' + practitionerResource['name'][0]['family'] + ', ' + \
+    if "," in name:
+        name = name.split(', ')
+        practitionerResource['name'] = [{}]
+        practitionerResource['name'][0]['given'] = name[1].split(' ')
+        practitionerResource['name'][0]['family'] = name[0]
+        practitionerResource['name'][0]['prefix'] = ['M.D.']
+        practitionerResource['name'][0]['text'] = ' '.join(practitionerResource['name'][0]['given']) + \
+                                              ' ' + practitionerResource['name'][0]['family'] + ', ' + \
                                               ', '.join(practitionerResource['name'][0]['prefix'])
+    else:
+        name = name.split(' ')
+        practitionerResource['name'] = [{}]
+        practitionerResource['name'][0]['given'] = name[0].split(' ')
+        practitionerResource['name'][0]['family'] = name[1]
+        practitionerResource['name'][0]['prefix'] = ['M.D.']
+        practitionerResource['name'][0]['text'] = ' '.join(practitionerResource['name'][0]['given']) + \
+                                                  ' ' + practitionerResource['name'][0]['family'] + ', ' + \
+                                                  ', '.join(practitionerResource['name'][0]['prefix'])
 
 class foundationFhirPatient:
     def __init__(self):
