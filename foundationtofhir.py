@@ -10,11 +10,20 @@ def addFoundationAsPerformer(resource):
         'display': "Foundation Medicine"
     }]
 
+def addFoundationReferenceWithField(resource, field):
+    resource[field] = [{
+        'reference': "Organization/FM",
+        'display': "Foundation Medicine"
+    }]
+
 def addPatientSubjectReference(resource, patientId, patientName):
     resource['subject'] = {
         'reference': "Patient/" + patientId,
         'display': patientName
     }
+
+def addRecordedTimeFromFoundation(resource, DOM):
+    resource['recorded'] = DOM.getElementsByTagName('ServerTime')[0].childNodes[0].nodeValue.replace(' ', 'T')
 
 class foundationFhirOrganization:
     def __init__(self):
@@ -651,6 +660,42 @@ def conditionAddEvidenceDetailReference(conditionResource, diagnosticReportId, D
                  DOM.getElementsByTagName('CollDate')[0].childNodes[0].nodeValue + " by Foundation Medicine"
     }]
 
+class foundationFhirDocumentReference:
+    def __init__(self):
+        self.documentReferenceResource = {
+            'resourceType': "DocumentReference",
+            'id': "FM-PDF-doc-ref-1",
+            'status': "current",
+            'docStatus': "final",
+            'description': "Foundation Medicine report PDF version"
+        }
+
+def documentReferenceAddBase64EncodingOfPDFFromFoundation(documentReferenceResource, DOM):
+    documentReferenceResource['content'] = [{
+        'attachment': {
+            'contentType': "base64",
+            'data': DOM.getElementsByTagName('ReportPDF')[0].childNodes[0].nodeValue
+        }
+    }]
+
+def documentReferenceAddClinicalContextFromFoundation(documentReferenceResource, patient, diagnosticReport):
+    documentReferenceResource['context'] = {
+        'period': {
+            'start': diagnosticReport.getReportDate(),
+            'end': diagnosticReport.getReportDate()
+        },
+        'sourcePatientInfo': {
+            'reference': "Patient/" + patient.getPatientId(),
+            'display': patient.getPatientFullName()
+        },
+        'related': [{
+            'ref': {
+                'reference': "DiagnosticReport/" + diagnosticReport.getDiagnosticReportId(),
+                'display': diagnosticReport.getDiagnosticReportTestPerformed()
+            }
+        }]
+    }
+
 class foundationFhirProcedureRequest:
     def __init__(self):
         self.procedureRequestResource = {
@@ -1185,9 +1230,6 @@ class foundationFhirProvenance:
 def provenanceAddId(provenanceResource, diagnosticReportId):
     provenanceResource['id'] = diagnosticReportId + "-provenance-1"
 
-def provenanceAddRecordedTimeFromFoundation(provenanceResource, DOM):
-    provenanceResource['recorded'] = DOM.getElementsByTagName('ServerTime')[0].childNodes[0].nodeValue.replace(' ', 'T')
-
 def provenanceAddTargetResources(provenanceResource, diagnosticReportId, diagnosticReportDisplay, observationArr):
     provenanceResource['target'] = []
     provenanceResource['target'].append({
@@ -1355,6 +1397,14 @@ for f in files:
     conditionAddEvidenceDetailReference(condition.conditionResource, diagnosticReport.getDiagnosticReportId(), DOM)
     addPatientSubjectReference(condition.conditionResource, patient.getPatientId(), patient.getPatientFullName())
 
+    documentReference = foundationFhirDocumentReference()
+    addPatientSubjectReference(documentReference.documentReferenceResource, patient.getPatientId(), patient.getPatientFullName())
+    addRecordedTimeFromFoundation(documentReference.documentReferenceResource, DOM)
+    addFoundationReferenceWithField(documentReference.documentReferenceResource, 'author')
+    addFoundationReferenceWithField(documentReference.documentReferenceResource, 'custodian')
+    documentReferenceAddBase64EncodingOfPDFFromFoundation(documentReference.documentReferenceResource, DOM)
+    documentReferenceAddClinicalContextFromFoundation(documentReference.documentReferenceResource, patient, diagnosticReport)
+
     procedureRequest = foundationFhirProcedureRequest()
     procedureRequestAddId(procedureRequest.procedureRequestResource, diagnosticReport.getDiagnosticReportId())
     procedureRequestAddNote(procedureRequest.procedureRequestResource, diagnosticReport.getDiagnosticReportTestPerformed())
@@ -1402,7 +1452,7 @@ for f in files:
 
     provenance = foundationFhirProvenance()
     provenanceAddId(provenance.provenanceResource, diagnosticReport.getDiagnosticReportId())
-    provenanceAddRecordedTimeFromFoundation(provenance.provenanceResource, DOM)
+    addRecordedTimeFromFoundation(provenance.provenanceResource, DOM)
     provenanceAddTargetResources(provenance.provenanceResource, diagnosticReport.getDiagnosticReportId(), diagnosticReport.getNameOfDiagnosticReport(), observationArr)
     provenanceAddSignaturesFromFoundation(provenance.provenanceResource, foundationPractitionerAsserters(), provenance.getRecordedTime(), DOM)
     practitionerIdsAndNames = getPractitionerNamesAndIdsFromSignatures(provenance.getSignaturesArray())
@@ -1417,6 +1467,7 @@ for f in files:
     bundle.addEntry(pathologist.practitionerResource)
     bundle.addEntry(diagnosticReport.diagnosticReportResource)
     bundle.addEntry(condition.conditionResource)
+    bundle.addEntry(documentReference.documentReferenceResource)
     bundle.addEntry(procedureRequest.procedureRequestResource)
     bundle.addEntry(specimen.specimenResource)
     bundle.addEntry(provenance.provenanceResource)
