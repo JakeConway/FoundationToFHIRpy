@@ -671,12 +671,13 @@ class foundationFhirDocumentReference:
         }
 
 def documentReferenceAddBase64EncodingOfPDFFromFoundation(documentReferenceResource, DOM):
-    documentReferenceResource['content'] = [{
-        'attachment': {
-            'contentType': "base64",
-            'data': DOM.getElementsByTagName('ReportPDF')[0].childNodes[0].nodeValue
-        }
-    }]
+    if(len(DOM.getElementsByTagName('ReportPDF')[0].childNodes) > 0):
+        documentReferenceResource['content'] = [{
+            'attachment': {
+                'contentType': "base64",
+                'data': DOM.getElementsByTagName('ReportPDF')[0].childNodes[0].nodeValue
+            }
+        }]
 
 def documentReferenceAddClinicalContextFromFoundation(documentReferenceResource, patient, diagnosticReport):
     documentReferenceResource['context'] = {
